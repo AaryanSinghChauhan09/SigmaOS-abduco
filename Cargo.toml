@@ -1,8 +1,15 @@
 [package]
-name = "sigmaos_abduco"
+name = "SigmaOS-abduco"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "SigmaOS sigmaos_abduco component"
 
 [lib]
 name = "sigmaos_abduco"
 path = "src/lib.rs"
+
+[dependencies]
+thiserror = "1"
+
+[dev-dependencies]

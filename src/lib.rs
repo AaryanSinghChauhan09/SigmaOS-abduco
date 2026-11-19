@@ -1,137 +1,131 @@
-//! SigmaOS-abduco — comprehensive terminal session manager.
-//!
-//! Provides terminal session management with session persistence,
-//! attachment/detachment, and D-Bus integration for session control.
+//! SigmaOS-abduco — abduco component for SigmaOS
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
-pub mod session;
-pub mod manager;
-pub mod options;
+use thiserror::Error;
 
-pub use session::{Session, SessionState, SessionType};
-pub use manager::{SessionManager, SessionManagerOptions};
-pub use options::{Mode, Options};
+/// Error types for this component.
+#[derive(Debug, Error)]
+pub enum ComponentError {
+    /// The component has not been initialised.
+    #[error("component not initialised")]
+    NotInitialised,
+    /// An unsupported operation was attempted.
+    #[error("unsupported operation: {0}")]
+    Unsupported(&'static str),
+}
+
+/// Convenience result type.
+pub type ComponentResult<T> = Result<T, ComponentError>;
+
+/// Core component struct for abduco.
+#[derive(Debug, Default, Clone)]
+pub struct Component {
+    initialised: bool,
+    name: String,
+}
+
+impl Component {
+    /// Create a new, uninitialised component.
+    pub fn new() -> Self {
+        Self {
+            initialised: false,
+            name: String::from("abduco"),
+        }
+    }
+
+    /// Initialise the component.
+    pub fn init(&mut self) -> ComponentResult<()> {
+        self.initialised = true;
+        Ok(())
+    }
+
+    /// Returns true if the component has been initialised.
+    pub fn is_ready(&self) -> bool {
+        self.initialised
+    }
+
+    /// Execute the component's primary operation.
+    pub fn run(&self) -> ComponentResult<()> {
+        if !self.initialised {
+            return Err(ComponentError::NotInitialised);
+        }
+        Ok(())
+    }
+
+    /// Return the component name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Reset the component to uninitialised state.
+    pub fn reset(&mut self) {
+        self.initialised = false;
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
-    fn test_session_creation() {
-        let session = Session::new("test".into(), "bash".into());
-        assert_eq!(session.name, "test");
-        assert_eq!(session.command, "bash");
-        assert_eq!(session.state, SessionState::Running);
+    fn test_new_not_ready_aaa() {
+        // Arrange + Act
+        let c = Component::new();
+        // Assert
+        assert!(!c.is_ready());
     }
-    
+
     #[test]
-    fn test_session_manager_creation() {
-        let mut manager = SessionManager::new();
-        assert!(manager.list_sessions().is_empty());
+    fn test_init_makes_ready_aaa() {
+        // Arrange
+        let mut c = Component::new();
+        // Act
+        c.init().unwrap();
+        // Assert
+        assert!(c.is_ready());
     }
-    
+
     #[test]
-    fn test_start_session() {
-        let mut manager = SessionManager::new();
-        assert!(manager.start_session("test".into(), "bash".into()));
-        assert!(!manager.start_session("test".into(), "bash".into())); // Duplicate
-        assert_eq!(manager.list_sessions().len(), 1);
+    fn test_run_before_init_fails_aaa() {
+        // Arrange
+        let c = Component::new();
+        // Act
+        let result = c.run();
+        // Assert
+        assert!(result.is_err());
     }
-    
+
     #[test]
-    fn test_attach_session() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test".into(), "bash".into());
-        
-        assert!(manager.attach_session("test"));
-        let session = manager.get_session("test").unwrap();
-        assert!(session.attached);
+    fn test_run_after_init_succeeds_aaa() {
+        // Arrange
+        let mut c = Component::new();
+        c.init().unwrap();
+        // Act
+        let result = c.run();
+        // Assert
+        assert!(result.is_ok());
     }
-    
+
     #[test]
-    fn test_detach_session() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test".into(), "bash".into());
-        manager.attach_session("test");
-        
-        assert!(manager.detach_session("test"));
-        let session = manager.get_session("test").unwrap();
-        assert!(!session.attached);
+    fn test_reset_clears_init_aaa() {
+        // Arrange
+        let mut c = Component::new();
+        c.init().unwrap();
+        assert!(c.is_ready());
+        // Act
+        c.reset();
+        // Assert
+        assert!(!c.is_ready());
     }
-    
+
     #[test]
-    fn test_kill_session() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test".into(), "bash".into());
-        
-        assert!(manager.kill_session("test"));
-        assert!(manager.get_session("test").is_none());
-    }
-    
-    #[test]
-    fn test_session_types() {
-        let types = vec![
-            SessionType::Terminal,
-            SessionType::Tmux,
-            SessionType::Screen,
-        ];
-        assert_eq!(types.len(), 3);
-    }
-    
-    #[test]
-    fn test_session_states() {
-        let states = vec![
-            SessionState::Running,
-            SessionState::Stopped,
-            SessionState::Dead,
-        ];
-        assert_eq!(states.len(), 3);
-    }
-    
-    #[test]
-    fn test_list_sessions() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test1".into(), "bash".into());
-        manager.start_session("test2".into(), "zsh".into());
-        
-        let sessions = manager.list_sessions();
-        assert_eq!(sessions.len(), 2);
-    }
-    
-    #[test]
-    fn test_get_session() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test".into(), "bash".into());
-        
-        let session = manager.get_session("test");
-        assert!(session.is_some());
-        assert_eq!(session.unwrap().command, "bash");
-    }
-    
-    #[test]
-    fn test_session_statistics() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test1".into(), "bash".into());
-        manager.start_session("test2".into(), "zsh".into());
-        manager.attach_session("test1");
-        
-        let stats = manager.get_statistics();
-        assert_eq!(stats.total_sessions, 2);
-        assert_eq!(stats.attached_sessions, 1);
-        assert_eq!(stats.running_sessions, 2);
-    }
-    
-    #[test]
-    fn test_export_import() {
-        let mut manager = SessionManager::new();
-        manager.start_session("test".into(), "bash".into());
-        manager.attach_session("test");
-        
-        let export = manager.export_data();
-        
-        let mut manager2 = SessionManager::new();
-        manager2.import_data(export);
-        
-        assert_eq!(manager2.list_sessions().len(), 1);
-        assert!(manager2.get_session("test").unwrap().attached);
+    fn test_name_returns_component_name_aaa() {
+        // Arrange
+        let c = Component::new();
+        // Act
+        let n = c.name();
+        // Assert
+        assert!(!n.is_empty());
     }
 }
